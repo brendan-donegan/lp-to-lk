@@ -1,0 +1,99 @@
+#!/usr/bin/python3
+
+import requests
+import sys
+from argparse import ArgumentParser
+from launchpadlib.launchpad import Launchpad
+from requests.auth import HTTPBasicAuth
+
+MAAS_BOARD_ID = "19865958"
+
+MAAS_BOARD_URL = "https://canonical.leankit.com/kanban/api/boards/{boardId}"
+MAAS_CARD_URL = "https://canonical.leankit.com/kanban/api/board/{boardId}/AddCard/lane/{laneId}/position/0"
+MAAS_BOARD_IDS_URL = "https://canonical.leankit.com/kanban/api/board/{boardId}/GetBoardIdentifiers"
+
+def get_maas_board(lk_user, lk_pass):
+    response = requests.get(
+        MAAS_BOARD_URL.format(boardId=MAAS_BOARD_ID),
+        auth=HTTPBasicAuth(lk_user, lk_pass)
+    )
+    if response.ok:
+        return response.json()['ReplyData'][0]
+    else:
+        return None
+
+def get_defects_identifier(lk_user, lk_pass):
+    response = requests.get(
+        MAAS_BOARD_IDS_URL.format(boardId=MAAS_BOARD_ID),
+        auth=HTTPBasicAuth(lk_user, lk_pass)
+    )
+    if response.ok:
+        for card_type in response.json()['ReplyData'][0]['CardTypes']:
+            if card_type['Name'] == 'Defect':
+                return card_type['Id']
+    return None
+
+def get_lane_from_name(lane_map, lanes, lane_name):
+    for lane_id in lanes:
+        lane = lane_map[lane_id]
+        if lane['Title'] == lane_name:
+            return lane
+    return None
+
+def add_bug_to_leankit(bug, lane, lk_user, lk_pass):
+    maas_board = get_maas_board(lk_user, lk_pass)
+    if maas_board is not None:
+        lane_map = {lane['Id']: lane for lane in maas_board['Lanes']}
+        lane_tokens = lane.split('/')
+        lane_or_backlog = lane_tokens.pop(0)
+        if lane_or_backlog == 'Backlog':
+            lane = get_lane_from_name(
+                lane_map,
+                maas_board['BacklogTopLevelLaneId'],
+                lane_or_backlog
+            )
+        else:
+            lane = get_lane_from_name(
+                lane_map,
+                maas_board['TopLevelLaneIds'],
+                lane_or_backlog
+            )
+        while len(lane_tokens) > 0:
+            lane_name = lane_tokens.pop(0)
+            lane = get_lane_from_name(
+                lane_map,
+                lane['ChildLaneIds'],
+                lane_name
+            )
+        # Now add to Leankit
+        print("Adding to Leankit")
+        params = {
+            'Title': bug.title,
+            'Description': bug.description,
+            'TypeId': get_defects_identifier(lk_user, lk_pass),
+            'Priority': 1,
+            'ExternalCardID': str(bug.id),
+            'ExternalSystemUrl': bug.web_link,
+        }
+        uri = MAAS_CARD_URL.format(boardId=MAAS_BOARD_ID, laneId=lane['Id'])
+        response = requests.post(
+            uri,
+            params=params,
+            auth=HTTPBasicAuth(lk_user, lk_pass)
+        )
+
+
+
+def main():
+    parser = ArgumentParser("Import a Launchpad bug to Leankit")
+    parser.add_argument('lk_user', help='Your Leankit username')
+    parser.add_argument('lk_pass', help='Your Leankit password')
+    parser.add_argument('lp_id', help='The Launchpad bug number to import')
+    parser.add_argument('lane', help='The name of the Leankit board lane to add the card to.')
+    args = parser.parse_args()
+    lp = Launchpad.login_with(sys.argv[0], 'production')
+    bug = lp.bugs[int(args.lp_id)]
+    add_bug_to_leankit(bug, args.lane, args.lk_user, args.lk_pass)
+
+if __name__ == "__main__":
+    main()
