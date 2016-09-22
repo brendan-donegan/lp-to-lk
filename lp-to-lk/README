@@ -1,0 +1,13 @@
+Launchpad to Leankit
+====================
+
+This script is a fairly simple tool, you just give it your LeanKit Kanban credentials, a bug number in Launchpad and the lane you want to add the card in and it creates a card with the following details:
+
+Type: Defect
+Title: The title of the bug in Launchpad
+Description: The description of the bug in Launchpad
+Card ID: The Launchpad bug number
+External Link: The Launchpad bug link
+
+Caveat: The lane has to have a name that is unique within the board.
+Caveat 2: The tool only works for the Canonical MAAS team board! This is an obvious improvement that could be made.
