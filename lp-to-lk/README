@@ -9,5 +9,9 @@ Description: The description of the bug in Launchpad
 Card ID: The Launchpad bug number
 External Link: The Launchpad bug link
 
+Example:
+
+lp-to-lk me.me@me.com passwordiethingy 160000 'In Progress/Defects/Backlog/Other'
+
 Caveat: The lane has to have a name that is unique within the board.
 Caveat 2: The tool only works for the Canonical MAAS team board! This is an obvious improvement that could be made.
